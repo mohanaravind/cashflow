@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CashFlow | Linear Style Finance</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    screens: {
+                        'xs': '475px',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        background: '#FFFFFF',
+                        surface: '#F8F9FA',      
+                        surfaceHighlight: '#F1F3F5',
+                        border: '#E5E7EB',
+                        primary: '#5E6AD2',
+                        success: '#10B981',      
+                        danger: '#EF4444',
+                        textMain: '#111827',     
+                        textMuted: '#6B7280',    
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #FFFFFF;
+            color: #111827;
+            -webkit-font-smoothing: antialiased;
+            height: 100dvh; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #E5E7EB;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #D1D5DB;
+        }
+
+        /* Input Styling */
+        .linear-input {
+            background: transparent;
+            border: 1px solid transparent;
+            border-bottom: 1px solid #E5E7EB;
+            transition: all 0.2s ease;
+            border-radius: 0; 
+            -webkit-appearance: none; 
+        }
+        .linear-input:focus {
+            outline: none;
+            border-bottom-color: #5E6AD2;
+            background: rgba(94, 106, 210, 0.03);
+        }
+        
+        select.linear-input {
+            color: #111827;
+        }
+
+        /* Card Effect */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0,0,0,0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+
+        /* Calendar Grid */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: #E5E7EB; 
+            border: 1px solid #E5E7EB;
+            min-width: 800px; 
+        }
+        .calendar-cell {
+            background: #FFFFFF;
+            min-height: 100px; 
+            transition: background 0.2s;
+            cursor: pointer;
+        }
+        @media (min-width: 1024px) {
+            .calendar-cell {
+                min-height: 120px;
+            }
+        }
+        .calendar-cell:hover {
+            background: #F9FAFB;
+        }
+        .calendar-cell.today {
+            background: rgba(94, 106, 210, 0.04);
+        }
+        .negative-balance {
+            color: #EF4444;
+            background: #FEF2F2;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        
+        /* Chip Delete Button */
+        .chip-delete {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .group:hover .chip-delete {
+            opacity: 1;
+        }
+        @media (max-width: 1024px) {
+            .chip-delete {
+                opacity: 1; 
+            }
+        }
+
+        /* Choice Modal Button Styles */
+        .choice-btn {
+            @apply flex flex-col items-start p-3 w-full border border-border rounded-lg hover:bg-surfaceHighlight transition-colors text-left;
+        }
+        .choice-btn strong {
+            @apply text-textMain text-xs font-semibold block mb-0.5;
+        }
+        .choice-btn span {
+            @apply text-textMuted text-[10px];
+        }
+    </style>
+</head>
+<body class="flex flex-col overflow-hidden text-sm font-sans">
+
+    <!-- Top Navigation -->
+    <nav class="h-14 border-b border-border flex items-center justify-between px-4 lg:px-6 bg-white/80 backdrop-blur-md z-20 shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center text-white font-bold shadow-sm">
+                <i class="ph ph-wave-sine"></i>
+            </div>
+            <span class="font-semibold tracking-tight text-textMain hidden xs:inline">CashFlow</span>
+        </div>
+        <div class="flex items-center gap-2 lg:gap-4">
+             <input type="file" id="importFile" class="hidden" accept=".json">
+            <button onclick="document.getElementById('importFile').click()" class="text-textMuted hover:text-textMain transition-colors flex items-center gap-2 font-medium px-2 py-1 rounded hover:bg-surfaceHighlight">
+                <i class="ph ph-upload-simple text-lg"></i> 
+                <span class="hidden sm:inline">Import</span>
+            </button>
+            <button onclick="exportData()" class="text-textMuted hover:text-textMain transition-colors flex items-center gap-2 font-medium px-2 py-1 rounded hover:bg-surfaceHighlight">
+                <i class="ph ph-download-simple text-lg"></i>
+                <span class="hidden sm:inline">Export</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        
+        <!-- Sidebar -->
+        <aside class="w-full lg:w-96 border-b lg:border-b-0 lg:border-r border-border bg-surface flex flex-col shrink-0 z-10 max-h-[40vh] lg:max-h-full overflow-hidden">
+            
+            <div class="flex-1 overflow-y-auto" id="sidebarScroll">
+                <div class="p-4 lg:p-6 border-b border-border bg-white">
+                    
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-textMuted mb-1 text-[10px] uppercase tracking-wider font-bold">Current Bal</label>
+                            <div class="relative">
+                                <span class="absolute left-0 top-1.5 text-textMuted">$</span>
+                                <input type="number" id="currentBalance" step="0.01" 
+                                    class="linear-input w-full pl-3 py-1 text-lg font-mono text-textMain placeholder-textMuted/50 font-medium bg-transparent" 
+                                    placeholder="0.00">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-textMuted mb-1 text-[10px] uppercase tracking-wider font-bold text-danger">Min Limit</label>
+                            <div class="relative">
+                                <span class="absolute left-0 top-1.5 text-textMuted">$</span>
+                                <input type="number" id="minBalance" step="0.01" 
+                                    class="linear-input w-full pl-3 py-1 text-lg font-mono text-textMain placeholder-textMuted/50 font-medium bg-transparent border-danger/20 focus:border-danger" 
+                                    placeholder="0.00">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-4 mb-4 text-xs border-t border-border/50 pt-3">
+                        <div class="flex-1">
+                            <span class="text-textMuted block mb-0.5">In</span>
+                            <span class="text-success font-mono font-medium" id="statsIncoming">$0.00</span>
+                        </div>
+                        <div class="flex-1">
+                            <span class="text-textMuted block mb-0.5">Out</span>
+                            <span class="text-danger font-mono font-medium" id="statsOutgoing">$0.00</span>
+                        </div>
+                    </div>
+
+                    <h2 class="text-textMuted uppercase text-[10px] font-bold tracking-widest mb-3 mt-4" id="formTitle">Add Entry</h2>
+                    
+                    <form id="transactionForm" class="space-y-3">
+                        <div class="flex gap-3">
+                            <input type="text" id="transName" required placeholder="Description" 
+                                class="linear-input flex-1 py-1.5 text-textMain placeholder-textMuted/60 text-xs">
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <div class="flex-1 relative">
+                                <span class="absolute left-0 top-1.5 text-textMuted text-xs">$</span>
+                                <input type="number" id="transAmount" required step="0.01" placeholder="0.00" 
+                                    class="linear-input w-full pl-3 py-1.5 text-textMain font-mono placeholder-textMuted/60 text-xs">
+                            </div>
+                            <select id="transType" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs">
+                                <option value="expense">Expense</option>
+                                <option value="income">Income</option>
+                            </select>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <input type="date" id="transDate" required 
+                                class="linear-input flex-1 py-1.5 text-textMain bg-transparent text-xs">
+                            
+                            <select id="transRecur" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs" title="Frequency">
+                                <option value="none">One-time</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="biweekly">Bi-Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button type="button" id="btnCancelEdit" onclick="cancelEdit()"
+                                class="hidden w-24 py-2 rounded-lg border border-border text-textMuted hover:bg-surfaceHighlight transition-all font-medium items-center justify-center text-xs">
+                                Cancel
+                            </button>
+                            <button type="submit" id="btnSubmit"
+                                class="flex-1 py-2 rounded-lg bg-white border border-border text-textMain hover:bg-surfaceHighlight transition-all font-medium flex items-center justify-center gap-2 group shadow-sm text-xs">
+                                <i class="ph ph-plus text-primary text-sm" id="btnSubmitIcon"></i>
+                                <span id="btnSubmitText">Add</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Upcoming List -->
+                <div class="p-4 lg:p-6 bg-surface">
+                    <h2 class="text-textMuted uppercase text-[10px] font-bold tracking-widest mb-3 flex justify-between items-center">
+                        Upcoming
+                        <span class="text-[10px] bg-white border border-border px-2 py-0.5 rounded-full text-textMain font-medium" id="entryCount">0</span>
+                    </h2>
+                    <div id="ledgerList" class="space-y-2 pb-4">
+                        <!-- Ledger Items Render Here -->
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Calendar Area -->
+        <main class="flex-1 flex flex-col bg-background overflow-hidden relative min-h-0">
+            <!-- Calendar Controls -->
+            <header class="h-14 border-b border-border flex items-center justify-between px-4 lg:px-6 shrink-0 bg-white">
+                <div class="flex items-center gap-2">
+                    <button id="prevMonth" class="p-1.5 rounded-md hover:bg-surfaceHighlight text-textMuted hover:text-textMain transition-colors">
+                        <i class="ph ph-caret-left text-lg"></i>
+                    </button>
+                    <h2 class="text-base lg:text-lg font-semibold tracking-tight w-32 lg:w-48 text-center text-textMain truncate" id="monthDisplay">Month Year</h2>
+                    <button id="nextMonth" class="p-1.5 rounded-md hover:bg-surfaceHighlight text-textMuted hover:text-textMain transition-colors">
+                        <i class="ph ph-caret-right text-lg"></i>
+                    </button>
+                </div>
+                
+                <div class="hidden sm:flex items-center gap-4 text-[10px] lg:text-xs text-textMuted font-medium">
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-success"></div>
+                        <span>In</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-danger"></div>
+                        <span>Out</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-danger/10 border border-danger"></div>
+                        <span>Below Limit</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Calendar Grid -->
+            <div class="flex-1 overflow-auto p-4 custom-scrollbar bg-surfaceHighlight/30 relative" id="calendarContainer">
+                <div class="min-w-[800px]"> 
+                    <div class="grid grid-cols-7 border-b border-border/0 bg-transparent text-[10px] text-textMuted font-semibold uppercase tracking-widest text-center py-2 mb-2">
+                        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+                    </div>
+                    <div id="calendar" class="calendar-grid rounded-xl overflow-hidden border border-border shadow-sm bg-white">
+                        <!-- Cells -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Floating Summary -->
+            <div class="absolute bottom-4 right-4 lg:bottom-8 lg:right-8 pointer-events-none z-30">
+                <div class="glass-panel px-4 py-3 lg:px-5 lg:py-4 rounded-xl shadow-xl pointer-events-auto flex items-center gap-4 animate-fade border-white/20">
+                    <div>
+                        <div class="text-[10px] text-textMuted uppercase tracking-widest font-bold">End of Month</div>
+                        <div class="text-xl lg:text-2xl font-mono font-semibold text-textMain" id="eomBalance">$0.00</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Smart Action Modal (Handles both Delete and Edit choices) -->
+    <div id="choiceModal" class="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-50 hidden flex items-center justify-center transition-all duration-200 opacity-0 p-4">
+        <div class="bg-white border border-border p-6 rounded-xl shadow-2xl w-full max-w-sm transform scale-95 transition-all duration-200" id="choiceModalContent">
+            
+            <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4" id="choiceIconWrapper">
+                <i class="ph ph-warning text-xl" id="choiceIcon"></i>
+            </div>
+
+            <h3 class="font-semibold text-textMain mb-2" id="choiceTitle">Recurring Transaction</h3>
+            <p class="text-textMuted text-xs mb-6 leading-relaxed" id="choiceDesc">This item is part of a recurring series. How do you want to apply this change?</p>
+            
+            <div class="flex flex-col gap-2">
+                <button id="btnChoiceThis" class="choice-btn group">
+                    <strong class="group-hover:text-primary">Only This Event</strong>
+                    <span>Changes only this specific transaction.</span>
+                </button>
+                
+                <button id="btnChoiceFuture" class="choice-btn group">
+                    <strong class="group-hover:text-primary">This and Following Events</strong>
+                    <span>Applies to this and all future transactions in the series.</span>
+                </button>
+                
+                <button id="btnChoiceAll" class="choice-btn group">
+                    <strong class="group-hover:text-primary">All Events</strong>
+                    <span>Applies to past, present, and future transactions.</span>
+                </button>
+                
+                <button id="btnChoiceCancel" class="mt-2 text-center text-textMuted hover:text-textMain text-xs font-medium py-2">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 translate-y-20 bg-textMain text-white px-5 py-2.5 rounded-lg font-medium shadow-xl transition-all duration-300 opacity-0 z-50 flex items-center gap-2 max-w-[90vw] whitespace-nowrap">
+        <i class="ph ph-check-circle text-success"></i>
+        <span id="toastMsg">Action Successful</span>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const STORE_KEY = 'cashflow_app_v3_smart';
+        
+        let state = {
+            currentBalance: 0,
+            minBalance: 0,
+            transactions: [], 
+            viewDate: new Date()
+        };
+
+        // Context for Modal
+        let modalContext = {
+            mode: null, // 'delete' or 'edit'
+            targetId: null,
+            payload: null // Used for Edit payload
+        };
+
+        let editingId = null;
+
+        // --- Init ---
+        function init() {
+            loadData();
+            document.getElementById('transDate').valueAsDate = new Date();
+            render();
+            setupModalListeners();
+        }
+
+        function loadData() {
+            const stored = localStorage.getItem(STORE_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                state.currentBalance = parseFloat(parsed.currentBalance) || 0;
+                state.minBalance = parseFloat(parsed.minBalance) || 0;
+                state.transactions = parsed.transactions || [];
+                state.transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+            }
+            document.getElementById('currentBalance').value = state.currentBalance;
+            document.getElementById('minBalance').value = state.minBalance;
+        }
+
+        function saveData() {
+            localStorage.setItem(STORE_KEY, JSON.stringify({
+                currentBalance: state.currentBalance,
+                minBalance: state.minBalance,
+                transactions: state.transactions
+            }));
+            render();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // --- Core Logic ---
+        function calculateCashflow() {
+            const flow = new Map();
+            let simulatedBalance = state.currentBalance;
+            const todayStr = new Date().toISOString().split('T')[0];
+            const sortedTrans = [...state.transactions].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+            sortedTrans.forEach(t => {
+                if (t.date >= todayStr) {
+                    if (t.type === 'income') simulatedBalance += t.amount;
+                    else simulatedBalance -= t.amount;
+                }
+                
+                if (!flow.has(t.date)) {
+                    flow.set(t.date, { income: 0, expense: 0, items: [] });
+                }
+                const dayData = flow.get(t.date);
+                if (t.type === 'income') dayData.income += t.amount;
+                else dayData.expense += t.amount;
+                dayData.items.push(t);
+                flow.get(t.date).endBalance = simulatedBalance;
+            });
+            return flow;
+        }
+
+        // --- Renderers ---
+        function render() {
+            renderLedger();
+            renderCalendar();
+            updateStats();
+        }
+
+        function updateStats() {
+            const income = state.transactions.reduce((acc, t) => t.type === 'income' ? acc + t.amount : acc, 0);
+            const expense = state.transactions.reduce((acc, t) => t.type === 'expense' ? acc + t.amount : acc, 0);
+            
+            document.getElementById('statsIncoming').innerText = `$${income.toFixed(2)}`;
+            document.getElementById('statsOutgoing').innerText = `$${expense.toFixed(2)}`;
+            document.getElementById('entryCount').innerText = state.transactions.length;
+        }
+
+        function renderLedger() {
+            const list = document.getElementById('ledgerList');
+            list.innerHTML = '';
+            
+            const sorted = [...state.transactions].sort((a,b) => new Date(a.date) - new Date(b.date));
+            if (sorted.length === 0) {
+                list.innerHTML = `<div class="text-center text-textMuted text-xs py-4 italic">No upcoming transactions</div>`;
+                return;
+            }
+            const limit = 100;
+            const displayList = sorted.slice(0, limit);
+
+            displayList.forEach(t => {
+                const el = document.createElement('div');
+                el.className = 'group flex items-center justify-between p-2.5 rounded-lg border border-transparent hover:border-border hover:bg-white hover:shadow-sm transition-all text-xs bg-surfaceHighlight/50 mb-1';
+                const isExpense = t.type === 'expense';
+                const colorClass = isExpense ? 'text-danger' : 'text-success';
+                const sign = isExpense ? '-' : '+';
+                const recurIcon = t.groupId ? `<i class="ph ph-arrows-clockwise text-textMuted/50 text-[10px] ml-1"></i>` : '';
+
+                el.innerHTML = `
+                    <div class="flex flex-col gap-0.5">
+                        <span class="font-semibold text-textMain flex items-center">${t.name} ${recurIcon}</span>
+                        <span class="text-textMuted text-[10px]">${t.date}</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono font-medium ${colorClass}">${sign}$${t.amount.toFixed(2)}</span>
+                        <div class="flex gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                            <button onclick="editTransaction('${t.id}')" class="p-1.5 rounded hover:bg-surfaceHighlight text-textMuted hover:text-primary transition-all" title="Edit">
+                                <i class="ph ph-pencil-simple text-sm"></i>
+                            </button>
+                            <button onclick="promptDelete('${t.id}')" class="p-1.5 rounded hover:bg-red-50 text-textMuted hover:text-danger transition-all" title="Delete">
+                                <i class="ph ph-trash text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(el);
+            });
+            if (sorted.length > limit) {
+                const more = document.createElement('div');
+                more.innerText = `+${sorted.length - limit} more transactions`;
+                list.appendChild(more);
+            }
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar');
+            grid.innerHTML = '';
+
+            const flowData = calculateCashflow();
+            const year = state.viewDate.getFullYear();
+            const month = state.viewDate.getMonth();
+
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            document.getElementById('monthDisplay').innerText = `${monthNames[month]} ${year}`;
+
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const daysInMonth = lastDay.getDate();
+            const startDayOfWeek = firstDay.getDay(); 
+            const todayStr = new Date().toISOString().split('T')[0];
+            
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const pad = document.createElement('div');
+                pad.className = 'bg-surfaceHighlight/20 border-r border-b border-border/50';
+                grid.appendChild(pad);
+            }
+
+            let runningBalanceDisplay = state.currentBalance;
+            const viewStartStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
+            if (viewStartStr > todayStr) {
+                 state.transactions.forEach(t => {
+                     if (t.date >= todayStr && t.date < viewStartStr) {
+                         if (t.type === 'income') runningBalanceDisplay += t.amount;
+                         else runningBalanceDisplay -= t.amount;
+                     }
+                 });
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const isToday = dateStr === todayStr;
+                const isPast = dateStr < todayStr;
+                const dayData = flowData.get(dateStr);
+                
+                if (dayData && !isPast) {
+                    if (dayData.items.length > 0) {
+                        const netChange = dayData.income - dayData.expense;
+                        runningBalanceDisplay += netChange;
+                    }
+                }
+
+                const cell = document.createElement('div');
+                let baseClasses = "calendar-cell p-1.5 lg:p-2 flex flex-col justify-between relative border-r border-b border-border/50";
+                if (isToday) baseClasses += " today ring-1 ring-inset ring-primary/20";
+                if (!isPast && runningBalanceDisplay < state.minBalance) baseClasses += " negative-balance";
+                cell.className = baseClasses;
+
+                cell.onclick = () => {
+                    document.getElementById('transDate').value = dateStr;
+                    if(window.innerWidth < 1024) document.querySelector('aside').scrollIntoView({ behavior: 'smooth' });
+                };
+
+                const dateNum = document.createElement('span');
+                dateNum.className = `text-[10px] lg:text-xs font-mono mb-1 ${isToday ? 'text-primary font-bold' : 'text-textMuted'}`;
+                dateNum.innerText = d;
+                cell.appendChild(dateNum);
+
+                const transContainer = document.createElement('div');
+                transContainer.className = 'flex flex-col gap-0.5 lg:gap-1 overflow-hidden';
+                if (dayData && dayData.items) {
+                    dayData.items.forEach(item => {
+                        const dot = document.createElement('div');
+                        dot.className = `group flex items-center justify-between gap-1 w-full text-[8px] lg:text-[10px] px-1 py-0.5 rounded font-medium cursor-pointer transition-all hover:brightness-95 active:scale-95 ${item.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.className = "truncate";
+                        textSpan.innerText = item.name;
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.innerHTML = "&times;";
+                        delBtn.className = "chip-delete text-xs font-bold px-1 hover:text-black/50 rounded";
+                        delBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            promptDelete(item.id);
+                        }
+
+                        dot.onclick = (e) => {
+                            e.stopPropagation();
+                            editTransaction(item.id);
+                        };
+                        
+                        dot.appendChild(textSpan);
+                        dot.appendChild(delBtn);
+                        transContainer.appendChild(dot);
+                    });
+                }
+                cell.appendChild(transContainer);
+
+                if (!isPast) {
+                    const balanceDiv = document.createElement('div');
+                    const balanceClass = runningBalanceDisplay < state.minBalance ? 'text-danger font-bold' : 'text-textMuted';
+                    balanceDiv.className = `mt-auto text-right text-[9px] lg:text-[10px] font-mono font-medium ${balanceClass}`;
+                    balanceDiv.innerText = `$${Math.round(runningBalanceDisplay).toLocaleString()}`;
+                    cell.appendChild(balanceDiv);
+                }
+
+                grid.appendChild(cell);
+            }
+            
+            const eomEl = document.getElementById('eomBalance');
+            eomEl.innerText = `$${runningBalanceDisplay.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
+            eomEl.className = `text-xl lg:text-2xl font-mono font-semibold ${runningBalanceDisplay < state.minBalance ? 'text-danger' : 'text-textMain'}`;
+        }
+
+        // --- Logic: Editing ---
+
+        window.editTransaction = (id) => {
+            const item = state.transactions.find(t => t.id === id);
+            if (!item) return;
+            editingId = id;
+            
+            document.getElementById('transName').value = item.name;
+            document.getElementById('transAmount').value = item.amount;
+            document.getElementById('transType').value = item.type;
+            document.getElementById('transDate').value = item.date;
+            
+            document.getElementById('formTitle').innerText = 'Edit Entry';
+            document.getElementById('btnSubmitText').innerText = 'Update';
+            document.getElementById('btnSubmitIcon').className = 'ph ph-check text-success text-sm';
+            document.getElementById('btnCancelEdit').classList.remove('hidden');
+            document.getElementById('btnCancelEdit').classList.add('flex');
+            document.getElementById('transRecur').value = 'none';
+
+            if(window.innerWidth < 1024) document.querySelector('aside').scrollIntoView({ behavior: 'smooth' });
+        };
+
+        window.cancelEdit = () => {
+            editingId = null;
+            document.getElementById('transactionForm').reset();
+            document.getElementById('transDate').valueAsDate = new Date();
+            
+            document.getElementById('formTitle').innerText = 'Add Entry';
+            document.getElementById('btnSubmitText').innerText = 'Add';
+            document.getElementById('btnSubmitIcon').className = 'ph ph-plus text-primary text-sm';
+            document.getElementById('btnCancelEdit').classList.add('hidden');
+            document.getElementById('btnCancelEdit').classList.remove('flex');
+            document.getElementById('transRecur').value = 'none';
+        };
+
+        // --- Logic: Modal & Choice Handling ---
+
+        const modal = document.getElementById('choiceModal');
+        const modalIconWrapper = document.getElementById('choiceIconWrapper');
+        const modalIcon = document.getElementById('choiceIcon');
+        const modalTitle = document.getElementById('choiceTitle');
+        const modalDesc = document.getElementById('choiceDesc');
+
+        window.promptDelete = (id) => {
+            const item = state.transactions.find(t => t.id === id);
+            if(!item) return;
+
+            // Simple delete if not recurrent
+            if (!item.groupId) {
+                if(confirm('Delete this transaction?')) { // Fallback/Simple check since we replaced the simple modal
+                    // Better: Simulate a simple delete flow or reuse modal logic? 
+                    // Let's use the modal but hide "Series" options if simple.
+                    // Or just execute simple delete for UX speed on non-recurring.
+                    executeAction('delete', 'this', id);
+                }
+                return;
+            }
+
+            // Open Modal for Recurring
+            openChoiceModal('delete', id);
+        };
+
+        function openChoiceModal(mode, id, payload = null) {
+            modalContext = { mode, targetId: id, payload };
+            
+            if (mode === 'delete') {
+                modalIconWrapper.className = "w-10 h-10 rounded-full bg-red-50 text-danger flex items-center justify-center mb-4";
+                modalIcon.className = "ph ph-trash text-xl";
+                modalTitle.innerText = "Delete Recurring Item";
+                modalDesc.innerText = "Do you want to delete only this instance, or future ones as well?";
+            } else {
+                modalIconWrapper.className = "w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4";
+                modalIcon.className = "ph ph-pencil-simple text-xl";
+                modalTitle.innerText = "Edit Recurring Item";
+                modalDesc.innerText = "Do you want to apply these changes to the series?";
+            }
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                document.getElementById('choiceModalContent').classList.remove('scale-95');
+                document.getElementById('choiceModalContent').classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeChoiceModal() {
+            modal.classList.add('opacity-0');
+            document.getElementById('choiceModalContent').classList.remove('scale-100');
+            document.getElementById('choiceModalContent').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        function executeAction(action, scope, id, payload = null) {
+            const target = state.transactions.find(t => t.id === id);
+            if (!target) return;
+
+            if (action === 'delete') {
+                if (scope === 'this') {
+                    state.transactions = state.transactions.filter(t => t.id !== id);
+                } else if (scope === 'future') {
+                    state.transactions = state.transactions.filter(t => !(t.groupId === target.groupId && t.date >= target.date));
+                } else if (scope === 'all') {
+                    state.transactions = state.transactions.filter(t => t.groupId !== target.groupId);
+                }
+                showToast('Deleted Successfully');
+                if (editingId === id) cancelEdit();
+            } 
+            else if (action === 'edit') {
+                const { name, amount, type, dateStr, recurrence } = payload;
+
+                if (scope === 'this') {
+                    // Update THIS item and DETACH from group
+                    const index = state.transactions.findIndex(t => t.id === id);
+                    if (index !== -1) {
+                        state.transactions[index] = {
+                            ...state.transactions[index],
+                            name, amount, type, date: dateStr, groupId: null 
+                        };
+                    }
+                } else if (scope === 'future') {
+                    // Delete FUTURE items (inclusive of current date match in group)
+                    // Logic: Delete all from group with date >= current. 
+                    state.transactions = state.transactions.filter(t => !(t.groupId === target.groupId && t.date >= target.date));
+                    
+                    // Create NEW series from here
+                    const newGroupId = crypto.randomUUID();
+                    // Add current modified
+                    const newItem = { id: crypto.randomUUID(), name, amount, type, date: dateStr, groupId: newGroupId };
+                    state.transactions.push(newItem);
+                    
+                    // Add future series if recurrence is active (or inherited from modal context? For now assume keeping existing recurrence type unless changed?)
+                    // Simplified: We assume we keep the 'recurrence' setting passed in payload or derived.
+                    // If the user didn't change recurrence in the form, 'recurrence' is 'none' (from dropdown default).
+                    // We need to know the ORIGINAL recurrence pattern to propagate it? 
+                    // This is complex. Let's rely on the dropdown value. 
+                    // If user left dropdown as 'One-time', but chose 'Future', it implies breaking the series.
+                    // But if they kept it 'Monthly', we generate.
+                    
+                    if (recurrence !== 'none') {
+                        const series = generateRecurrenceSeries(dateStr, recurrence, name, amount, type, newGroupId);
+                        state.transactions.push(...series);
+                    } else {
+                         // If user selected "Future" but dropdown is "None", maybe they mean "Just change the future items' amount"?
+                         // That requires knowing the OLD recurrence. 
+                         // Fallback: If 'none', we treat 'Future' as 'Just This' + Delete Future. 
+                    }
+                } else if (scope === 'all') {
+                    // Update Name/Amount/Type for ALL in group. Keep dates intact.
+                    state.transactions.forEach(t => {
+                        if (t.groupId === target.groupId) {
+                            t.name = name;
+                            t.amount = amount;
+                            t.type = type;
+                        }
+                    });
+                }
+                showToast('Updated Successfully');
+                cancelEdit();
+            }
+            saveData();
+            closeChoiceModal();
+        }
+
+        // --- Event Listeners ---
+
+        function setupModalListeners() {
+            document.getElementById('btnChoiceCancel').addEventListener('click', closeChoiceModal);
+            
+            document.getElementById('btnChoiceThis').addEventListener('click', () => {
+                executeAction(modalContext.mode, 'this', modalContext.targetId, modalContext.payload);
+            });
+            document.getElementById('btnChoiceFuture').addEventListener('click', () => {
+                executeAction(modalContext.mode, 'future', modalContext.targetId, modalContext.payload);
+            });
+            document.getElementById('btnChoiceAll').addEventListener('click', () => {
+                executeAction(modalContext.mode, 'all', modalContext.targetId, modalContext.payload);
+            });
+
+            // Close on background click
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeChoiceModal();
+            });
+        }
+
+        document.getElementById('currentBalance').addEventListener('change', (e) => {
+            state.currentBalance = parseFloat(e.target.value) || 0;
+            saveData();
+        });
+
+        document.getElementById('minBalance').addEventListener('change', (e) => {
+            state.minBalance = parseFloat(e.target.value) || 0;
+            saveData();
+        });
+
+        document.getElementById('transactionForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('transName').value;
+            const amount = parseFloat(document.getElementById('transAmount').value);
+            const type = document.getElementById('transType').value;
+            const dateStr = document.getElementById('transDate').value;
+            const recurrence = document.getElementById('transRecur').value;
+
+            if (!name || isNaN(amount) || !dateStr) return;
+
+            if (editingId) {
+                const item = state.transactions.find(t => t.id === editingId);
+                
+                // If it's a recurring item (has groupId)
+                if (item && item.groupId) {
+                    // Check if Recurrence Rule Changed. If so, FORCE "Future" logic (Re-gen) without modal options because "All" is invalid for freq change
+                    if (recurrence !== 'none') {
+                        // User explicitly set a new recurrence. Treat as "Future" (Fork).
+                         executeAction('edit', 'future', editingId, { name, amount, type, dateStr, recurrence });
+                    } else {
+                        // Recurrence dropdown is 'none' (user didn't touch it), but item IS recurring.
+                        // Ask user scope.
+                        // PASS 'recurrence' as the implied existing recurrence? 
+                        // Actually we don't know the existing recurrence interval easily without analyzing dates. 
+                        // LIMITATION: If editing "Future" without changing dropdown, we might lose recurrence?
+                        // FIX: For this lightweight app, if you want to edit "Future", you MUST re-select the frequency if you want it to continue being recurring.
+                        // OR: We warn "Please select frequency to update future series". 
+                        // Let's assume for "Future" edits, if dropdown is 'none', we just update values of future items if they exist? No that's hard.
+                        // Simpler: Just prompt. If they pick "Future" or "All" with "None" selected, we just update fields of existing items.
+                        
+                        // Special Handling inside executeAction for 'future' with 'none':
+                        // If 'future' & 'none': We iterate future items and update fields (Name/Amt), keeping dates.
+                        
+                        openChoiceModal('edit', editingId, { name, amount, type, dateStr, recurrence });
+                    }
+                } else {
+                    // Not recurring, simple update
+                    executeAction('edit', 'this', editingId, { name, amount, type, dateStr, recurrence });
+                }
+            } else {
+                // Create New
+                const groupId = recurrence !== 'none' ? crypto.randomUUID() : null;
+                const newTransactions = [];
+
+                if (recurrence === 'none') {
+                    newTransactions.push({
+                        id: crypto.randomUUID(),
+                        name, amount, type, date: dateStr, groupId: null
+                    });
+                } else {
+                    const series = generateRecurrenceSeries(dateStr, recurrence, name, amount, type, groupId);
+                    newTransactions.push({
+                        id: crypto.randomUUID(),
+                        name, amount, type, date: dateStr, groupId
+                    });
+                    newTransactions.push(...series);
+                }
+                state.transactions.push(...newTransactions);
+                e.target.reset();
+                document.getElementById('transDate').valueAsDate = new Date();
+                document.getElementById('transRecur').value = 'none';
+                showToast(recurrence === 'none' ? 'Transaction Added' : `Series Created (${newTransactions.length})`);
+                saveData();
+            }
+        });
+
+        function generateRecurrenceSeries(startDateStr, recurrence, name, amount, type, groupId) {
+            const newItems = [];
+            let currentDate = new Date(startDateStr + 'T12:00:00');
+            
+            if (recurrence === 'weekly') currentDate.setDate(currentDate.getDate() + 7);
+            else if (recurrence === 'biweekly') currentDate.setDate(currentDate.getDate() + 14);
+            else if (recurrence === 'monthly') currentDate.setMonth(currentDate.getMonth() + 1);
+            else if (recurrence === 'yearly') currentDate.setFullYear(currentDate.getFullYear() + 1);
+
+            const endDate = new Date(currentDate);
+            endDate.setFullYear(endDate.getFullYear() + 1); 
+
+            while (currentDate <= endDate) {
+                const isoDate = currentDate.toISOString().split('T')[0];
+                newItems.push({
+                    id: crypto.randomUUID(),
+                    name, amount, type, date: isoDate, groupId
+                });
+
+                if (recurrence === 'weekly') currentDate.setDate(currentDate.getDate() + 7);
+                else if (recurrence === 'biweekly') currentDate.setDate(currentDate.getDate() + 14);
+                else if (recurrence === 'monthly') currentDate.setMonth(currentDate.getMonth() + 1);
+                else if (recurrence === 'yearly') currentDate.setFullYear(currentDate.getFullYear() + 1);
+            }
+            return newItems;
+        }
+
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            state.viewDate.setMonth(state.viewDate.getMonth() - 1);
+            renderCalendar();
+        });
+
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            state.viewDate.setMonth(state.viewDate.getMonth() + 1);
+            renderCalendar();
+        });
+
+        window.exportData = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state));
+            const node = document.createElement('a');
+            node.setAttribute("href", dataStr);
+            node.setAttribute("download", "cashflow_backup.json");
+            document.body.appendChild(node);
+            node.click();
+            node.remove();
+        };
+
+        document.getElementById('importFile').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.transactions) {
+                        state = parsed;
+                        state.viewDate = new Date();
+                        saveData();
+                        document.getElementById('currentBalance').value = state.currentBalance;
+                        showToast('Data Imported Successfully');
+                    }
+                } catch (err) {
+                    showToast('Error parsing file');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        init();
+    </script>
+</body>
+</html>
