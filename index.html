@@ -105,13 +105,13 @@
         }
         .calendar-cell {
             background: #FFFFFF;
-            min-height: 100px; 
+            min-height: 80px; /* Reduced for mobile */
             transition: background 0.2s;
             cursor: pointer;
         }
         @media (min-width: 1024px) {
             .calendar-cell {
-                min-height: 120px;
+                min-height: 120px; /* Keep desktop size */
             }
         }
         .calendar-cell:hover {
@@ -158,9 +158,49 @@
         .choice-btn span {
             @apply text-textMuted text-[10px];
         }
+
+        /* Loading Overlay */
+        #loadingOverlay {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+        }
+        
+        /* Saving Indicator */
+        #saveIndicator {
+            transition: opacity 0.3s;
+        }
+
+        /* Collapsible Utilities */
+        .collapsed-content {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: all 0.3s ease-out;
+        }
+        .expanded-content {
+            max-height: 500px; /* Arbitrary large height */
+            opacity: 1;
+            transition: all 0.3s ease-in;
+        }
+        /* When using max-height for transitions, sometimes 500px isn't enough for long lists. 
+           We can increase it for the ledger list or use a scrollable inner container. */
+        .expanded-list-content {
+            max-height: 60vh; /* Allow list to take up significant space when open */
+            opacity: 1;
+            transition: all 0.3s ease-in;
+        }
+        .chevron-rotated {
+            transform: rotate(-90deg);
+        }
     </style>
 </head>
 <body class="flex flex-col overflow-hidden text-sm font-sans">
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 z-[60] flex flex-col items-center justify-center transition-opacity duration-300">
+        <div class="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
+        <div class="text-textMuted text-xs font-medium animate-pulse">Syncing...</div>
+    </div>
 
     <!-- Top Navigation -->
     <nav class="h-14 border-b border-border flex items-center justify-between px-4 lg:px-6 bg-white/80 backdrop-blur-md z-20 shrink-0">
@@ -169,6 +209,7 @@
                 <i class="ph ph-wave-sine"></i>
             </div>
             <span class="font-semibold tracking-tight text-textMain hidden xs:inline">CashFlow</span>
+            <span id="saveIndicator" class="text-[10px] text-textMuted font-mono opacity-0 bg-surfaceHighlight px-2 py-0.5 rounded ml-2">Saving...</span>
         </div>
         <div class="flex items-center gap-2 lg:gap-4">
              <input type="file" id="importFile" class="hidden" accept=".json">
@@ -187,7 +228,7 @@
     <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
         
         <!-- Sidebar -->
-        <aside class="w-full lg:w-96 border-b lg:border-b-0 lg:border-r border-border bg-surface flex flex-col shrink-0 z-10 max-h-[40vh] lg:max-h-full overflow-hidden">
+        <aside class="w-full lg:w-96 border-b lg:border-b-0 lg:border-r border-border bg-surface flex flex-col shrink-0 z-10 max-h-[45vh] lg:max-h-full overflow-hidden">
             
             <div class="flex-1 overflow-y-auto" id="sidebarScroll">
                 <div class="p-4 lg:p-6 border-b border-border bg-white">
@@ -225,60 +266,73 @@
                         </div>
                     </div>
 
-                    <h2 class="text-textMuted uppercase text-[10px] font-bold tracking-widest mb-3 mt-4" id="formTitle">Add Entry</h2>
+                    <!-- Collapsible Trigger -->
+                    <button id="toggleFormBtn" class="w-full flex items-center justify-between text-textMuted uppercase text-[10px] font-bold tracking-widest mb-2 mt-4 hover:text-textMain transition-colors group">
+                        <span id="formTitle">Add Entry</span>
+                        <i id="formChevron" class="ph ph-caret-down text-lg transition-transform text-textMuted group-hover:text-textMain"></i>
+                    </button>
                     
-                    <form id="transactionForm" class="space-y-3">
-                        <div class="flex gap-3">
-                            <input type="text" id="transName" required placeholder="Description" 
-                                class="linear-input flex-1 py-1.5 text-textMain placeholder-textMuted/60 text-xs">
-                        </div>
-                        
-                        <div class="flex gap-3">
-                            <div class="flex-1 relative">
-                                <span class="absolute left-0 top-1.5 text-textMuted text-xs">$</span>
-                                <input type="number" id="transAmount" required step="0.01" placeholder="0.00" 
-                                    class="linear-input w-full pl-3 py-1.5 text-textMain font-mono placeholder-textMuted/60 text-xs">
+                    <!-- Collapsible Content -->
+                    <div id="transactionFormContainer" class="expanded-content">
+                        <form id="transactionForm" class="space-y-3 pt-1 pb-2">
+                            <div class="flex gap-3">
+                                <input type="text" id="transName" required placeholder="Description" 
+                                    class="linear-input flex-1 py-1.5 text-textMain placeholder-textMuted/60 text-xs">
                             </div>
-                            <select id="transType" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs">
-                                <option value="expense">Expense</option>
-                                <option value="income">Income</option>
-                            </select>
-                        </div>
-
-                        <div class="flex gap-3">
-                            <input type="date" id="transDate" required 
-                                class="linear-input flex-1 py-1.5 text-textMain bg-transparent text-xs">
                             
-                            <select id="transRecur" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs" title="Frequency">
-                                <option value="none">One-time</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="biweekly">Bi-Weekly</option>
-                                <option value="monthly">Monthly</option>
-                                <option value="yearly">Yearly</option>
-                            </select>
-                        </div>
+                            <div class="flex gap-3">
+                                <div class="flex-1 relative">
+                                    <span class="absolute left-0 top-1.5 text-textMuted text-xs">$</span>
+                                    <input type="number" id="transAmount" required step="0.01" placeholder="0.00" 
+                                        class="linear-input w-full pl-3 py-1.5 text-textMain font-mono placeholder-textMuted/60 text-xs">
+                                </div>
+                                <select id="transType" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs">
+                                    <option value="expense">Expense</option>
+                                    <option value="income">Income</option>
+                                </select>
+                            </div>
 
-                        <div class="flex gap-2">
-                            <button type="button" id="btnCancelEdit" onclick="cancelEdit()"
-                                class="hidden w-24 py-2 rounded-lg border border-border text-textMuted hover:bg-surfaceHighlight transition-all font-medium items-center justify-center text-xs">
-                                Cancel
-                            </button>
-                            <button type="submit" id="btnSubmit"
-                                class="flex-1 py-2 rounded-lg bg-white border border-border text-textMain hover:bg-surfaceHighlight transition-all font-medium flex items-center justify-center gap-2 group shadow-sm text-xs">
-                                <i class="ph ph-plus text-primary text-sm" id="btnSubmitIcon"></i>
-                                <span id="btnSubmitText">Add</span>
-                            </button>
-                        </div>
-                    </form>
+                            <div class="flex gap-3">
+                                <input type="date" id="transDate" required 
+                                    class="linear-input flex-1 py-1.5 text-textMain bg-transparent text-xs">
+                                
+                                <select id="transRecur" class="linear-input flex-1 py-1.5 text-textMain bg-transparent cursor-pointer text-xs" title="Frequency">
+                                    <option value="none">One-time</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="biweekly">Bi-Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="yearly">Yearly</option>
+                                </select>
+                            </div>
+
+                            <div class="flex gap-2">
+                                <button type="button" id="btnCancelEdit" onclick="cancelEdit()"
+                                    class="hidden w-24 py-2 rounded-lg border border-border text-textMuted hover:bg-surfaceHighlight transition-all font-medium items-center justify-center text-xs">
+                                    Cancel
+                                </button>
+                                <button type="submit" id="btnSubmit"
+                                    class="flex-1 py-2 rounded-lg bg-white border border-border text-textMain hover:bg-surfaceHighlight transition-all font-medium flex items-center justify-center gap-2 group shadow-sm text-xs">
+                                    <i class="ph ph-plus text-primary text-sm" id="btnSubmitIcon"></i>
+                                    <span id="btnSubmitText">Add</span>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Upcoming List -->
                 <div class="p-4 lg:p-6 bg-surface">
-                    <h2 class="text-textMuted uppercase text-[10px] font-bold tracking-widest mb-3 flex justify-between items-center">
-                        Upcoming
-                        <span class="text-[10px] bg-white border border-border px-2 py-0.5 rounded-full text-textMain font-medium" id="entryCount">0</span>
-                    </h2>
-                    <div id="ledgerList" class="space-y-2 pb-4">
+                    <button id="toggleLedgerBtn" class="w-full flex items-center justify-between text-textMuted uppercase text-[10px] font-bold tracking-widest mb-2 hover:text-textMain transition-colors group">
+                        <span>Upcoming</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] bg-white border border-border px-2 py-0.5 rounded-full text-textMain font-medium" id="entryCount">0</span>
+                            <!-- Default state: Rotated (Collapsed) -->
+                            <i id="ledgerChevron" class="ph ph-caret-down text-lg transition-transform text-textMuted group-hover:text-textMain chevron-rotated"></i>
+                        </div>
+                    </button>
+                    
+                    <!-- Ledger List Container: Collapsed by default -->
+                    <div id="ledgerList" class="space-y-2 pb-4 collapsed-content overflow-y-auto custom-scrollbar">
                         <!-- Ledger Items Render Here -->
                     </div>
                 </div>
@@ -340,7 +394,7 @@
 
     </div>
 
-    <!-- Smart Action Modal (Handles both Delete and Edit choices) -->
+    <!-- Smart Action Modal -->
     <div id="choiceModal" class="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-50 hidden flex items-center justify-center transition-all duration-200 opacity-0 p-4">
         <div class="bg-white border border-border p-6 rounded-xl shadow-2xl w-full max-w-sm transform scale-95 transition-all duration-200" id="choiceModalContent">
             
@@ -376,14 +430,17 @@
 
     <!-- Toast -->
     <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 translate-y-20 bg-textMain text-white px-5 py-2.5 rounded-lg font-medium shadow-xl transition-all duration-300 opacity-0 z-50 flex items-center gap-2 max-w-[90vw] whitespace-nowrap">
-        <i class="ph ph-check-circle text-success"></i>
+        <i class="ph ph-check-circle text-success" id="toastIcon"></i>
         <span id="toastMsg">Action Successful</span>
     </div>
 
     <script>
         // --- State Management ---
-        const STORE_KEY = 'cashflow_app_v3_smart';
-        
+        const STORE_KEY = 'cashflow_app_v2_storage';
+        const SILO_READ_URL = 'https://api.jsonsilo.com/public/c49331a4-3618-48d4-9136-a82f1eef783b';
+        const SILO_WRITE_URL = 'https://api.jsonsilo.com/api/v1/manage/c49331a4-3618-48d4-9136-a82f1eef783b';
+        const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX3V1aWQiOiI4REd5NENCcHR1ZTlhbHhVWTJoYWJPengzV0IyIiwiaXNzIjoiaHR0cHM6Ly9qc29uc2lsby5jb20iLCJleHAiOjE3Njc2NTcyNjF9.m_45zupzeQLtSK0aj0oRbjS3bg3qA7SjRnzKC6oKDlc';
+
         let state = {
             currentBalance: 0,
             minBalance: 0,
@@ -391,48 +448,124 @@
             viewDate: new Date()
         };
 
-        // Context for Modal
-        let modalContext = {
-            mode: null, // 'delete' or 'edit'
-            targetId: null,
-            payload: null // Used for Edit payload
-        };
-
+        let modalContext = { mode: null, targetId: null, payload: null };
         let editingId = null;
 
         // --- Init ---
-        function init() {
-            loadData();
+        async function init() {
+            const overlay = document.getElementById('loadingOverlay');
+            
+            // Try loading from Cloud first, fallback to local
+            try {
+                await loadData();
+            } catch (error) {
+                console.warn("Initial load from Silo failed, checking local...", error);
+            }
+            
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+            }, 300);
+
             document.getElementById('transDate').valueAsDate = new Date();
             render();
             setupModalListeners();
+            setupCollapsible();
+            setupLedgerCollapsible(); // Initialize ledger toggle
         }
 
-        function loadData() {
-            const stored = localStorage.getItem(STORE_KEY);
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                state.currentBalance = parseFloat(parsed.currentBalance) || 0;
-                state.minBalance = parseFloat(parsed.minBalance) || 0;
-                state.transactions = parsed.transactions || [];
-                state.transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+        async function loadData() {
+            let loaded = false;
+            try {
+                const response = await fetch(SILO_READ_URL, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const rawData = await response.json();
+                    const data = rawData.data || rawData; 
+                    
+                    const actualState = data.file_data || data;
+
+                    if (actualState && (actualState.transactions || actualState.currentBalance !== undefined)) {
+                        applyState(actualState);
+                        loaded = true;
+                        showToast("Synced from Cloud");
+                    }
+                }
+            } catch (err) {
+                console.warn('Silo Load Failed:', err);
             }
+
+            if (!loaded) {
+                const stored = localStorage.getItem(STORE_KEY);
+                if (stored) {
+                    const parsed = JSON.parse(stored);
+                    applyState(parsed);
+                    showToast("Loaded Local Data", true); 
+                }
+            }
+        }
+
+        function applyState(data) {
+            state.currentBalance = parseFloat(data.currentBalance) || 0;
+            state.minBalance = parseFloat(data.minBalance) || 0;
+            state.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+            state.transactions.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
             document.getElementById('currentBalance').value = state.currentBalance;
             document.getElementById('minBalance').value = state.minBalance;
         }
 
-        function saveData() {
-            localStorage.setItem(STORE_KEY, JSON.stringify({
-                currentBalance: state.currentBalance,
-                minBalance: state.minBalance,
-                transactions: state.transactions
-            }));
-            render();
+        async function saveData() {
+            localStorage.setItem(STORE_KEY, JSON.stringify(state));
+            
+            render(); 
+            
+            const indicator = document.getElementById('saveIndicator');
+            indicator.innerText = "Syncing...";
+            indicator.classList.remove('opacity-0');
+
+            try {
+                const response = await fetch(SILO_WRITE_URL, {
+                    method: 'PATCH', 
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'X-MAN-API': API_KEY
+                    },
+                    body: JSON.stringify({
+                        file_name: 'CashFlow Data',
+                        file_data: state,
+                        region_name: 'api',
+                        is_public: true
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Cloud sync failed: ${response.status}`);
+                }
+
+                indicator.innerText = "Synced";
+                setTimeout(() => indicator.classList.add('opacity-0'), 2000);
+            } catch (err) {
+                console.warn("Silo Sync Failed:", err);
+                indicator.innerText = "Saved (Local)";
+            }
         }
 
-        function showToast(msg) {
+        function showToast(msg, isError = false) {
             const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            
             document.getElementById('toastMsg').innerText = msg;
+            
+            if(isError) {
+                icon.className = "ph ph-warning-circle text-orange-400";
+            } else {
+                icon.className = "ph ph-check-circle text-success";
+            }
+
             toast.classList.remove('translate-y-20', 'opacity-0');
             setTimeout(() => {
                 toast.classList.add('translate-y-20', 'opacity-0');
@@ -581,6 +714,8 @@
 
                 cell.onclick = () => {
                     document.getElementById('transDate').value = dateStr;
+                    // Auto-open form
+                    openForm();
                     if(window.innerWidth < 1024) document.querySelector('aside').scrollIntoView({ behavior: 'smooth' });
                 };
 
@@ -636,6 +771,54 @@
             eomEl.className = `text-xl lg:text-2xl font-mono font-semibold ${runningBalanceDisplay < state.minBalance ? 'text-danger' : 'text-textMain'}`;
         }
 
+        // --- Collapsible Logic ---
+        function setupCollapsible() {
+            const btn = document.getElementById('toggleFormBtn');
+            btn.addEventListener('click', toggleForm);
+        }
+
+        function toggleForm() {
+            const container = document.getElementById('transactionFormContainer');
+            const chevron = document.getElementById('formChevron');
+            
+            if (container.classList.contains('expanded-content')) {
+                container.classList.remove('expanded-content');
+                container.classList.add('collapsed-content');
+                chevron.classList.add('chevron-rotated');
+            } else {
+                openForm();
+            }
+        }
+
+        function openForm() {
+            const container = document.getElementById('transactionFormContainer');
+            const chevron = document.getElementById('formChevron');
+            container.classList.remove('collapsed-content');
+            container.classList.add('expanded-content');
+            chevron.classList.remove('chevron-rotated');
+        }
+
+        function setupLedgerCollapsible() {
+            const btn = document.getElementById('toggleLedgerBtn');
+            btn.addEventListener('click', toggleLedger);
+        }
+
+        function toggleLedger() {
+            const container = document.getElementById('ledgerList');
+            const chevron = document.getElementById('ledgerChevron');
+            
+            // Note: We use a specific class for list expansion to allow scrolling if needed
+            if (container.classList.contains('expanded-list-content')) {
+                container.classList.remove('expanded-list-content');
+                container.classList.add('collapsed-content');
+                chevron.classList.add('chevron-rotated');
+            } else {
+                container.classList.remove('collapsed-content');
+                container.classList.add('expanded-list-content');
+                chevron.classList.remove('chevron-rotated');
+            }
+        }
+
         // --- Logic: Editing ---
 
         window.editTransaction = (id) => {
@@ -643,6 +826,9 @@
             if (!item) return;
             editingId = id;
             
+            // Auto open form if collapsed
+            openForm();
+
             document.getElementById('transName').value = item.name;
             document.getElementById('transAmount').value = item.amount;
             document.getElementById('transType').value = item.type;
@@ -683,18 +869,12 @@
             const item = state.transactions.find(t => t.id === id);
             if(!item) return;
 
-            // Simple delete if not recurrent
             if (!item.groupId) {
-                if(confirm('Delete this transaction?')) { // Fallback/Simple check since we replaced the simple modal
-                    // Better: Simulate a simple delete flow or reuse modal logic? 
-                    // Let's use the modal but hide "Series" options if simple.
-                    // Or just execute simple delete for UX speed on non-recurring.
+                if(confirm('Delete this transaction?')) { 
                     executeAction('delete', 'this', id);
                 }
                 return;
             }
-
-            // Open Modal for Recurring
             openChoiceModal('delete', id);
         };
 
@@ -749,7 +929,6 @@
                 const { name, amount, type, dateStr, recurrence } = payload;
 
                 if (scope === 'this') {
-                    // Update THIS item and DETACH from group
                     const index = state.transactions.findIndex(t => t.id === id);
                     if (index !== -1) {
                         state.transactions[index] = {
@@ -758,34 +937,17 @@
                         };
                     }
                 } else if (scope === 'future') {
-                    // Delete FUTURE items (inclusive of current date match in group)
-                    // Logic: Delete all from group with date >= current. 
                     state.transactions = state.transactions.filter(t => !(t.groupId === target.groupId && t.date >= target.date));
                     
-                    // Create NEW series from here
                     const newGroupId = crypto.randomUUID();
-                    // Add current modified
                     const newItem = { id: crypto.randomUUID(), name, amount, type, date: dateStr, groupId: newGroupId };
                     state.transactions.push(newItem);
-                    
-                    // Add future series if recurrence is active (or inherited from modal context? For now assume keeping existing recurrence type unless changed?)
-                    // Simplified: We assume we keep the 'recurrence' setting passed in payload or derived.
-                    // If the user didn't change recurrence in the form, 'recurrence' is 'none' (from dropdown default).
-                    // We need to know the ORIGINAL recurrence pattern to propagate it? 
-                    // This is complex. Let's rely on the dropdown value. 
-                    // If user left dropdown as 'One-time', but chose 'Future', it implies breaking the series.
-                    // But if they kept it 'Monthly', we generate.
                     
                     if (recurrence !== 'none') {
                         const series = generateRecurrenceSeries(dateStr, recurrence, name, amount, type, newGroupId);
                         state.transactions.push(...series);
-                    } else {
-                         // If user selected "Future" but dropdown is "None", maybe they mean "Just change the future items' amount"?
-                         // That requires knowing the OLD recurrence. 
-                         // Fallback: If 'none', we treat 'Future' as 'Just This' + Delete Future. 
                     }
                 } else if (scope === 'all') {
-                    // Update Name/Amount/Type for ALL in group. Keep dates intact.
                     state.transactions.forEach(t => {
                         if (t.groupId === target.groupId) {
                             t.name = name;
@@ -816,7 +978,6 @@
                 executeAction(modalContext.mode, 'all', modalContext.targetId, modalContext.payload);
             });
 
-            // Close on background click
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) closeChoiceModal();
             });
@@ -845,34 +1006,16 @@
             if (editingId) {
                 const item = state.transactions.find(t => t.id === editingId);
                 
-                // If it's a recurring item (has groupId)
                 if (item && item.groupId) {
-                    // Check if Recurrence Rule Changed. If so, FORCE "Future" logic (Re-gen) without modal options because "All" is invalid for freq change
                     if (recurrence !== 'none') {
-                        // User explicitly set a new recurrence. Treat as "Future" (Fork).
                          executeAction('edit', 'future', editingId, { name, amount, type, dateStr, recurrence });
                     } else {
-                        // Recurrence dropdown is 'none' (user didn't touch it), but item IS recurring.
-                        // Ask user scope.
-                        // PASS 'recurrence' as the implied existing recurrence? 
-                        // Actually we don't know the existing recurrence interval easily without analyzing dates. 
-                        // LIMITATION: If editing "Future" without changing dropdown, we might lose recurrence?
-                        // FIX: For this lightweight app, if you want to edit "Future", you MUST re-select the frequency if you want it to continue being recurring.
-                        // OR: We warn "Please select frequency to update future series". 
-                        // Let's assume for "Future" edits, if dropdown is 'none', we just update values of future items if they exist? No that's hard.
-                        // Simpler: Just prompt. If they pick "Future" or "All" with "None" selected, we just update fields of existing items.
-                        
-                        // Special Handling inside executeAction for 'future' with 'none':
-                        // If 'future' & 'none': We iterate future items and update fields (Name/Amt), keeping dates.
-                        
                         openChoiceModal('edit', editingId, { name, amount, type, dateStr, recurrence });
                     }
                 } else {
-                    // Not recurring, simple update
                     executeAction('edit', 'this', editingId, { name, amount, type, dateStr, recurrence });
                 }
             } else {
-                // Create New
                 const groupId = recurrence !== 'none' ? crypto.randomUUID() : null;
                 const newTransactions = [];
 
