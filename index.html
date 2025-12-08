@@ -16,12 +16,14 @@
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
-    <!-- LZ String (Compression) -->
+    <!-- LZ String (Compression - kept for file exports) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
     <!-- QR Code Generator -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- QR Code Scanner -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- PeerJS (WebRTC) -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
     <script>
         tailwind.config = {
@@ -233,11 +235,11 @@
         <div class="flex items-center gap-2 lg:gap-4">
              <input type="file" id="importFile" class="hidden" accept=".json">
             <button onclick="openMethodModal('import')" class="text-textMuted hover:text-textMain transition-colors flex items-center gap-2 font-medium px-2 py-1 rounded hover:bg-surfaceHighlight">
-                <i class="ph ph-upload-simple text-lg"></i> 
+                <i class="ph ph-download-simple text-lg"></i> 
                 <span class="hidden sm:inline">Import</span>
             </button>
             <button onclick="openMethodModal('export')" class="text-textMuted hover:text-textMain transition-colors flex items-center gap-2 font-medium px-2 py-1 rounded hover:bg-surfaceHighlight">
-                <i class="ph ph-download-simple text-lg"></i>
+                <i class="ph ph-upload-simple text-lg"></i> 
                 <span class="hidden sm:inline">Export</span>
             </button>
         </div>
@@ -452,10 +454,10 @@
                     </div>
                 </button>
                 <button id="btnMethodQR" class="action-btn group flex-1">
-                    <i class="ph ph-qr-code group-hover:text-indigo-500"></i>
+                    <i class="ph ph-broadcast group-hover:text-indigo-500"></i>
                     <div>
-                        <strong class="group-hover:text-primary block">QR Code</strong>
-                        <span>Scan to transfer</span>
+                        <strong class="group-hover:text-primary block">Sync Devices</strong>
+                        <span>WebRTC / QR</span>
                     </div>
                 </button>
             </div>
@@ -463,24 +465,57 @@
         </div>
     </div>
 
-    <!-- QR Display/Scan Modal -->
+    <!-- WebRTC Sync Modal -->
     <div id="qrModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden flex items-center justify-center transition-all duration-200 opacity-0 p-4">
         <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-md relative flex flex-col items-center" id="qrModalContent">
             <button onclick="closeQRModal()" class="absolute top-4 right-4 text-textMuted hover:text-textMain"><i class="ph ph-x text-xl"></i></button>
             
-            <h3 class="font-semibold text-textMain mb-4" id="qrTitle">Scan Code</h3>
+            <h3 class="font-semibold text-textMain mb-2" id="qrTitle">Device Sync</h3>
             
-            <!-- Container for QR Generation -->
-            <div id="qrGenContainer" class="hidden flex-col items-center">
-                <div id="qrcode" class="bg-white p-2 rounded"></div>
-                <p class="text-xs text-textMuted mt-4 text-center max-w-xs">Scan this code with another device running this app to transfer your data.</p>
-                <p class="text-[10px] text-danger mt-2" id="qrWarning"></p>
+            <!-- Host Mode (Sender) -->
+            <div id="qrGenContainer" class="hidden flex-col items-center w-full">
+                <div class="text-xs text-textMuted mb-4 text-center">Scan with other device to connect</div>
+                <div id="qrcode" class="bg-white p-2 rounded border border-border"></div>
+                
+                <div class="w-full mt-6 text-center">
+                    <div class="text-[10px] uppercase text-textMuted font-bold tracking-widest mb-2">Or use this phrase</div>
+                    <div id="hostPhraseDisplay" class="font-mono text-xl text-primary font-bold tracking-tight select-all"></div>
+                </div>
+                
+                <div class="mt-4 flex items-center gap-2 text-xs text-textMuted">
+                    <div class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" id="hostStatusDot"></div>
+                    <span id="hostStatusText">Waiting for connection...</span>
+                </div>
             </div>
 
-            <!-- Container for QR Scanner -->
-            <div id="qrScanContainer" class="hidden w-full">
-                <div id="reader" class="w-full rounded overflow-hidden bg-black"></div>
-                <p class="text-xs text-textMuted mt-4 text-center">Point your camera at the CashFlow QR code.</p>
+            <!-- Client Mode (Receiver) -->
+            <div id="qrScanContainer" class="hidden w-full flex-col items-center">
+                
+                <!-- Tab Switcher for Scan vs Type -->
+                <div class="flex w-full border-b border-border mb-4">
+                    <button onclick="switchScanMode('camera')" id="tabCamera" class="flex-1 pb-2 text-xs font-medium text-primary border-b-2 border-primary transition-all">Scan QR</button>
+                    <button onclick="switchScanMode('manual')" id="tabManual" class="flex-1 pb-2 text-xs font-medium text-textMuted hover:text-textMain transition-all">Enter Phrase</button>
+                </div>
+
+                <!-- Camera View -->
+                <div id="cameraView" class="w-full">
+                    <div id="reader" class="w-full rounded overflow-hidden bg-black h-64"></div>
+                    <p class="text-xs text-textMuted mt-2 text-center">Point camera at the Sync QR code</p>
+                </div>
+
+                <!-- Manual Entry View -->
+                <div id="manualView" class="w-full hidden">
+                    <label class="text-xs text-textMuted mb-1 block">Enter 3-word phrase</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="manualPhraseInput" placeholder="word-word-word" class="linear-input flex-1 py-2 text-textMain font-mono text-center lowercase">
+                        <button onclick="connectToPhrase()" class="bg-primary text-white rounded px-4 text-xs font-medium hover:bg-indigo-600 transition-colors">Connect</button>
+                    </div>
+                    <p class="text-[10px] text-textMuted mt-4 text-center">Enter the phrase shown on the host device.</p>
+                </div>
+
+                <div id="clientStatus" class="mt-4 text-xs text-center hidden">
+                    <i class="ph ph-spinner animate-spin"></i> Connecting...
+                </div>
             </div>
         </div>
     </div>
@@ -498,6 +533,23 @@
         const SILO_WRITE_URL = 'https://api.jsonsilo.com/api/v1/manage/c49331a4-3618-48d4-9136-a82f1eef783b';
         const API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX3V1aWQiOiI4REd5NENCcHR1ZTlhbHhVWTJoYWJPengzV0IyIiwiaXNzIjoiaHR0cHM6Ly9qc29uc2lsby5jb20iLCJleHAiOjE3Njc2NTcyNjF9.m_45zupzeQLtSK0aj0oRbjS3bg3qA7SjRnzKC6oKDlc';
 
+        // Friendly words for IDs (256 words)
+        const WORD_LIST = [
+            "apple", "arch", "army", "atom", "baby", "ball", "band", "bank", "bath", "bear", "beef", "beer", "bell", "belt", "bird", "bite", "bike", "bill", "bind", "blue",
+            "boat", "body", "bone", "book", "boom", "boot", "born", "boss", "bowl", "bulk", "burn", "bush", "busy", "cake", "calf", "call", "calm", "camp", "card", "care",
+            "case", "cash", "cast", "cell", "chat", "chef", "city", "clam", "clay", "clip", "club", "code", "coil", "coin", "cold", "cone", "cook", "cool", "copy", "cord",
+            "core", "cork", "corn", "cost", "crew", "crop", "crow", "cube", "cure", "curl", "cute", "dark", "data", "date", "dawn", "days", "deal", "dean", "dear", "debt",
+            "deck", "deed", "deep", "deer", "demo", "desk", "dial", "dice", "diet", "disc", "dish", "disk", "dock", "doll", "door", "dose", "dove", "down", "draw", "drop",
+            "drum", "duck", "dust", "duty", "each", "earn", "ease", "east", "easy", "edge", "edit", "else", "envy", "epic", "even", "ever", "evil", "exam", "exit", "face",
+            "fact", "fade", "fail", "fair", "fall", "fame", "farm", "fast", "fate", "fear", "feed", "feel", "feet", "fell", "felt", "file", "fill", "film", "find", "fine",
+            "fire", "firm", "fish", "fist", "five", "flag", "flat", "flew", "flip", "flow", "foam", "foil", "fold", "folk", "fond", "food", "foot", "ford", "fork", "form",
+            "fort", "four", "free", "frog", "from", "fuel", "full", "fund", "fury", "fuse", "gain", "game", "gate", "gave", "gear", "gene", "gift", "girl", "give", "glad",
+            "glow", "glue", "goal", "goat", "gold", "golf", "gone", "good", "grab", "gray", "grid", "grip", "grow", "gulf", "hack", "hair", "half", "hall", "halo", "hand",
+            "hang", "hard", "hare", "harm", "harp", "hate", "hawk", "head", "heal", "heap", "hear", "heat", "heel", "heir", "held", "help", "herb", "herd", "here", "hero",
+            "high", "hike", "hill", "hint", "hire", "hold", "hole", "home", "hood", "hook", "hope", "horn", "hose", "host", "hour", "huge", "hula", "hull", "hunt", "hurt",
+            "icon", "idea", "idle", "inch", "info", "into", "iron", "item", "jack", "jade"
+        ];
+
         let state = {
             currentBalance: 0,
             minBalance: 0,
@@ -508,6 +560,8 @@
         let modalContext = { mode: null, targetId: null, payload: null };
         let editingId = null;
         let html5QrcodeScanner = null;
+        let peer = null;
+        let activeConnection = null;
 
         // --- Init ---
         async function init() {
@@ -589,7 +643,7 @@
         }
 
         // --- Import/Export UI Logic ---
-        let currentMethodType = 'export'; // 'import' or 'export'
+        let currentMethodType = 'export'; 
 
         window.openMethodModal = (type) => {
             currentMethodType = type;
@@ -607,8 +661,8 @@
             
             document.getElementById('btnMethodQR').onclick = () => {
                 closeMethodModal();
-                if(type === 'export') generateQR();
-                else startQRScanner();
+                if(type === 'export') startHostSession(); // Host
+                else startClientSession(); // Client
             };
 
             modal.classList.remove('hidden');
@@ -628,123 +682,191 @@
             setTimeout(() => modal.classList.add('hidden'), 200);
         };
 
-        // --- QR Logic ---
-        
-        // 1. Minify/Maximize helpers to save QR space
-        function minifyState(s) {
-            return {
-                b: s.currentBalance,
-                m: s.minBalance,
-                t: s.transactions.map(t => ({
-                    n: t.name,
-                    a: t.amount,
-                    ty: t.type === 'expense' ? 0 : 1, // 0 for expense, 1 for income
-                    d: t.date,
-                    g: t.groupId,
-                    i: t.id
-                }))
-            };
+        // --- WebRTC / Sync Logic ---
+
+        function generatePhrase() {
+            // Generate 3 random words
+            const r = () => WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
+            return `${r()}-${r()}-${r()}`;
         }
 
-        function expandState(min) {
-            return {
-                currentBalance: min.b,
-                minBalance: min.m || 0,
-                transactions: (min.t || []).map(t => ({
-                    name: t.n,
-                    amount: t.a,
-                    type: t.ty === 1 ? 'income' : 'expense',
-                    date: t.d,
-                    groupId: t.g,
-                    id: t.i
-                }))
-            };
-        }
+        function startHostSession() {
+            // 1. Generate ID
+            const phrase = generatePhrase();
+            const peerId = `cf_${phrase}`; // Prefix for uniqueness scope
 
-        function generateQR() {
+            // 2. Open Modal UI
             const modal = document.getElementById('qrModal');
-            document.getElementById('qrTitle').innerText = "Export via QR";
+            document.getElementById('qrTitle').innerText = "Host Sync Session";
             document.getElementById('qrGenContainer').classList.remove('hidden');
             document.getElementById('qrGenContainer').classList.add('flex');
             document.getElementById('qrScanContainer').classList.add('hidden');
-            document.getElementById('qrWarning').innerText = "";
-
-            const qrContainer = document.getElementById('qrcode');
-            qrContainer.innerHTML = ''; // Clear previous
-
-            // Compress Data
-            const minified = minifyState(state);
-            const jsonStr = JSON.stringify(minified);
-            const compressed = LZString.compressToEncodedURIComponent(jsonStr);
+            document.getElementById('hostPhraseDisplay').innerText = phrase;
             
-            // Check size roughly
-            if (compressed.length > 2500) {
-                document.getElementById('qrWarning').innerText = "Warning: Data is very large. Scanning may be difficult.";
-            }
-
+            // 3. Generate QR (Just the phrase/ID)
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
             new QRCode(qrContainer, {
-                text: "CFv1:" + compressed,
-                width: 256,
-                height: 256,
+                text: peerId, // Encode the full peer ID
+                width: 180,
+                height: 180,
                 colorDark : "#000000",
                 colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.L
+                correctLevel : QRCode.CorrectLevel.M
             });
 
             modal.classList.remove('hidden');
             setTimeout(() => modal.classList.remove('opacity-0'), 10);
+
+            // 4. Initialize PeerJS
+            if(peer) peer.destroy();
+            peer = new Peer(peerId);
+
+            peer.on('open', (id) => {
+                console.log('Peer ID is: ' + id);
+            });
+
+            peer.on('connection', (conn) => {
+                // Connection established
+                document.getElementById('hostStatusText').innerText = "Connected! Sending data...";
+                document.getElementById('hostStatusDot').classList.remove('bg-yellow-400');
+                document.getElementById('hostStatusDot').classList.add('bg-success');
+                
+                conn.on('open', () => {
+                    // Send Data
+                    conn.send(state);
+                    setTimeout(() => {
+                        showToast("Data Sent Successfully");
+                        closeQRModal();
+                    }, 1000);
+                });
+            });
+            
+            peer.on('error', (err) => {
+                console.error(err);
+                if (err.type === 'unavailable-id') {
+                    // Retry with new ID if collision (rare)
+                    peer.destroy();
+                    setTimeout(startHostSession, 500); 
+                } else {
+                    document.getElementById('hostStatusText').innerText = "Connection Error";
+                    document.getElementById('hostStatusText').className = "text-danger";
+                }
+            });
         }
 
-        function startQRScanner() {
+        function startClientSession() {
             const modal = document.getElementById('qrModal');
-            document.getElementById('qrTitle').innerText = "Scan QR";
+            document.getElementById('qrTitle').innerText = "Connect to Device";
             document.getElementById('qrGenContainer').classList.add('hidden');
             document.getElementById('qrGenContainer').classList.remove('flex');
             document.getElementById('qrScanContainer').classList.remove('hidden');
+            document.getElementById('qrScanContainer').classList.add('flex');
+            document.getElementById('clientStatus').classList.add('hidden');
+
+            // Default to Camera
+            switchScanMode('camera');
 
             modal.classList.remove('hidden');
             setTimeout(() => modal.classList.remove('opacity-0'), 10);
 
-            // Initialize Scanner
+            // Initialize Peer (Anonymous)
+            if(peer) peer.destroy();
+            peer = new Peer(); 
+        }
+
+        window.switchScanMode = (mode) => {
+            const tabCamera = document.getElementById('tabCamera');
+            const tabManual = document.getElementById('tabManual');
+            const cameraView = document.getElementById('cameraView');
+            const manualView = document.getElementById('manualView');
+
+            if(mode === 'camera') {
+                tabCamera.classList.add('text-primary', 'border-b-2', 'border-primary');
+                tabCamera.classList.remove('text-textMuted');
+                tabManual.classList.remove('text-primary', 'border-b-2', 'border-primary');
+                tabManual.classList.add('text-textMuted');
+                
+                cameraView.classList.remove('hidden');
+                manualView.classList.add('hidden');
+                initScanner();
+            } else {
+                tabManual.classList.add('text-primary', 'border-b-2', 'border-primary');
+                tabManual.classList.remove('text-textMuted');
+                tabCamera.classList.remove('text-primary', 'border-b-2', 'border-primary');
+                tabCamera.classList.add('text-textMuted');
+
+                cameraView.classList.add('hidden');
+                manualView.classList.remove('hidden');
+                stopScanner();
+            }
+        }
+
+        function initScanner() {
             if (!html5QrcodeScanner) {
                 html5QrcodeScanner = new Html5Qrcode("reader");
             }
-            
             const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            
-            html5QrcodeScanner.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess, 
-                (err) => { /* ignore frame errors */ }
-            ).catch(err => {
-                console.error("Camera start failed", err);
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, (err) => {}).catch(err => {
+                console.error(err);
                 showToast("Camera Error", true);
-                closeQRModal();
             });
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
-            if (decodedText.startsWith("CFv1:")) {
-                try {
-                    const compressed = decodedText.substring(5);
-                    const jsonStr = LZString.decompressFromEncodedURIComponent(compressed);
-                    const minified = JSON.parse(jsonStr);
-                    const newState = expandState(minified);
-                    
-                    if (newState.transactions) {
-                        applyState(newState);
-                        saveData();
-                        showToast("Imported successfully!");
-                        closeQRModal();
-                    }
-                } catch (e) {
-                    console.error(e);
-                    showToast("Invalid QR Data", true);
-                }
-            } else {
-                showToast("Not a CashFlow QR", true);
+        function stopScanner() {
+            if(html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.stop().then(() => html5QrcodeScanner.clear()).catch(err => console.log(err));
             }
+        }
+
+        function onScanSuccess(decodedText) {
+            connectToPeer(decodedText);
+        }
+
+        window.connectToPhrase = () => {
+            const val = document.getElementById('manualPhraseInput').value.trim().toLowerCase();
+            if(!val) return;
+            // Add prefix if missing
+            const peerId = val.startsWith('cf_') ? val : `cf_${val}`;
+            connectToPeer(peerId);
+        }
+
+        function connectToPeer(remoteId) {
+            stopScanner();
+            document.getElementById('clientStatus').classList.remove('hidden');
+            document.getElementById('clientStatus').innerHTML = `<i class="ph ph-spinner animate-spin"></i> Connecting to ${remoteId.replace('cf_', '')}...`;
+
+            const conn = peer.connect(remoteId);
+
+            conn.on('open', () => {
+                console.log("Connected to Host");
+                document.getElementById('clientStatus').innerHTML = `<span class="text-success">Connected! Receiving...</span>`;
+            });
+
+            conn.on('data', (data) => {
+                console.log("Received Data", data);
+                if (data.transactions && typeof data.currentBalance !== 'undefined') {
+                    applyState(data);
+                    saveData();
+                    showToast("Sync Complete!");
+                    closeQRModal();
+                } else {
+                    showToast("Received invalid data", true);
+                }
+            });
+
+            conn.on('error', (err) => {
+                console.error(err);
+                showToast("Connection Failed", true);
+                document.getElementById('clientStatus').innerHTML = `<span class="text-danger">Failed. Check phrase.</span>`;
+            });
+            
+            // Timeout safety
+            setTimeout(() => {
+                if(document.getElementById('clientStatus').innerHTML.includes('Connecting')) {
+                     document.getElementById('clientStatus').innerHTML = `<span class="text-danger">Timeout. Host not found.</span>`;
+                }
+            }, 10000);
         }
 
         function closeQRModal() {
@@ -752,10 +874,10 @@
             modal.classList.add('opacity-0');
             setTimeout(() => {
                 modal.classList.add('hidden');
-                if(html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-                    html5QrcodeScanner.stop().then(() => {
-                        html5QrcodeScanner.clear();
-                    }).catch(err => console.log("Failed to stop scanner", err));
+                stopScanner();
+                if(peer) {
+                    peer.destroy();
+                    peer = null;
                 }
             }, 200);
         }
